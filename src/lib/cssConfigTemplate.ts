@@ -11,5 +11,6 @@ declare var define;
 })(this, function() {
   return {
     cssConfig: 'CSS_CONFIG_PLACEHOLDER',
+    styleParamsDefaults: 'STYLE_PARAMS_DEFAULTS_PLACEHOLDER',
   };
 });

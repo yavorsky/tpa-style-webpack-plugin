@@ -8,7 +8,7 @@ import * as prefixer from 'postcss-prefix-selector';
 import {Result} from 'postcss';
 import {createHash} from 'crypto';
 import * as webpack from 'webpack';
-import {generateStandaloneCssConfigFilename} from './standaloneCssConfigFilename';
+import {generateStandaloneCssConfigFilename, getRelatedStyleParamsFileName} from './standaloneCssConfigFilename';
 
 const isWebpack5 = parseInt(webpack.version, 10) === 5;
 
@@ -142,6 +142,17 @@ class TPAStylePlugin {
     return escapedContent.substring(1, escapedContent.length - 1);
   }
 
+  private getStyleParamsDefaultsContent(assets: any, fileName: string) {
+    const styleParamsFileName = getRelatedStyleParamsFileName(fileName);
+    const styleParamsFile = assets[styleParamsFileName];
+
+    if (styleParamsFile) {
+      return styleParamsFile.source();
+    }
+
+    return '';
+  }
+
   private replaceByPlaceHolder({sourceCode, newSource, shouldEscapeContent, placeholder, params}) {
     const placeHolder = `'${this.compilationHash}${placeholder}'`;
     const placeHolderPos = sourceCode.indexOf(placeHolder);
@@ -155,12 +166,17 @@ class TPAStylePlugin {
     }
   }
 
-  private generateStandaloneCssConfig({shouldEscapeContent, params}) {
+  private generateStandaloneCssConfig({shouldEscapeContent, params, styleParamsDefaults}) {
     const sourceCode = fs.readFileSync(path.join(__dirname, './cssConfigTemplate.js')).toString();
 
-    return new RawSource(
-      sourceCode.replace(`'CSS_CONFIG_PLACEHOLDER'`, this.getPlaceholderContent(params, shouldEscapeContent))
-    );
+    const standaloneCssConfigContent = sourceCode
+      .replace(`'CSS_CONFIG_PLACEHOLDER'`, this.getPlaceholderContent(params, shouldEscapeContent))
+      .replace(
+        `'STYLE_PARAMS_DEFAULTS_PLACEHOLDER'`,
+        this.getPlaceholderContent(styleParamsDefaults, shouldEscapeContent) // TODO: do we need that `shouldEscapeContent` here?
+      );
+
+    return new RawSource(standaloneCssConfigContent);
   }
 
   private replaceSource(compilation, extractResults, shouldEscapeContent) {
@@ -208,9 +224,12 @@ class TPAStylePlugin {
             compilationHash: this.compilationHash,
           };
 
+          const styleParamsDefaults = this.getStyleParamsDefaultsContent(compilation.assets, file);
+
           compilation.assets[cssConfigFilename] = this.generateStandaloneCssConfig({
             shouldEscapeContent,
             params,
+            styleParamsDefaults,
           });
 
           compilation.assets[file] = newSource;
